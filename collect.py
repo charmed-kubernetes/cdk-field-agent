@@ -5,6 +5,7 @@ import os
 import tempfile
 import time
 
+from datetime import datetime
 from subprocess import check_output, check_call, CalledProcessError, Popen
 
 
@@ -15,16 +16,24 @@ def debug_action(temppath, status, application):
     app = apps.get(application, {})
     units = app.get('units', {})
     for unit in list(units.keys()):
-        cmd = 'juju run-action %s debug --format json' % unit
-        raw_action = check_output(cmd.split())
-        action = json.loads(raw_action.decode())
-        action_id = action['Action queued with id']
         print('Executing debug action on %s...' % unit)
+        cmd = 'juju run-action %s debug --format json' % unit
+        try:
+            raw_action = check_output(cmd.split())
+            action = json.loads(raw_action.decode())
+        except:
+            print('Error running the debug action. Skipping.')
+            continue
+        action_id = action['Action queued with id']
         while True:
             # FIXME: blocks forever in a couple cases
             cmd = 'juju show-action-output %s --format json' % action_id
-            raw_action_output = check_output(cmd.split())
-            action_output = json.loads(raw_action_output.decode())
+            try:
+                raw_action_output = check_output(cmd.split())
+                action_output = json.loads(raw_action_output.decode())
+            except:
+                print('Error checking action output. Ignoring.')
+                continue
             if action_output['status'] in ['running', 'pending']:
                 time.sleep(1)
                 continue
@@ -34,7 +43,10 @@ def debug_action(temppath, status, application):
                 outpath = os.path.join(temppath, 'debug', unit_name, unit_id)
                 os.makedirs(outpath)
                 cmd = 'juju scp %s:%s %s' % (unit, action_output['results']['path'], outpath)
-                check_call(cmd.split())
+                try:
+                    check_call(cmd.split())
+                except:
+                    print('Error copying debug action output. Skipping.')
                 break
             print('Failed debug action on unit %s, status %s' % (unit, action_output['status']))
             break
@@ -52,7 +64,7 @@ def command(temppath, filename, cmd):
 
 
 def store_results(temppath):
-    ts = time.asctime(time.gmtime()).replace(' ', '-').replace(':', '-')
+    ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     fname = 'results-%s.tar.gz' % ts
     cmd = 'tar -C %s -czf %s results' % (os.path.dirname(temppath), fname)
     check_call(cmd.split())
@@ -65,8 +77,12 @@ def main():
     os.makedirs(temppath)
 
     print('Getting juju status...')
-    raw_status = check_output('juju status --format json'.split())
-    status = json.loads(raw_status.decode())
+    try:
+        raw_status = check_output('juju status --format json'.split())
+        status = json.loads(raw_status.decode())
+    except:
+        print('Error getting juju status. Aborting.')
+        return
     apps = status.get('applications', {})
 
     debug_action(temppath, status, 'kubernetes-master')
