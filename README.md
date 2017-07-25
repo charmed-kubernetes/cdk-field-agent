@@ -15,11 +15,11 @@ we may need to debug your problems in production. If for some reason things don'
 proceed smoothly, here's the data collected:
 
  - debug action output from all kubernetes-master units
-  - `juju run-action kubernetes-master/0 debug`
-  - `juju show-action-output <action-id>`
-  - `juju scp kubernetes-master/0:<action output result path> .`
-  - `juju run-action kubernetes-master/1 debug`
-  - ...
+   - `juju run-action kubernetes-master/0 debug`
+   - `juju show-action-output <action-id>`
+   - `juju scp kubernetes-master/0:<action output result path> .`
+   - `juju run-action kubernetes-master/1 debug`
+   - ...
  - debug action output from all kubernetes-worker units
  - debug action output from all etcd units
  - `juju status --format yaml`
