@@ -83,7 +83,6 @@ def main():
     except:
         print('Error getting juju status. Aborting.')
         return
-    apps = status.get('applications', {})
 
     debug_action(temppath, status, 'kubernetes-master')
     debug_action(temppath, status, 'kubernetes-worker')
