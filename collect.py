@@ -6,7 +6,7 @@ import tempfile
 import time
 
 from datetime import datetime
-from subprocess import check_output, check_call, CalledProcessError, Popen
+from subprocess import check_output, check_call, Popen
 
 
 def debug_action(temppath, status, application):
@@ -99,6 +99,13 @@ def main():
     command(temppath, 'etcd-config', 'juju config etcd --format yaml')
     command(temppath, 'easyrsa-config', 'juju config easyrsa --format yaml')
     command(temppath, 'flannel-config', 'juju config flannel --format yaml')
+
+    apps = status.get('applications', {})
+    for app, app_status in apps.items():
+        units = app_status.get('units', {})
+        for unit in units.keys():
+            filename = 'status-log-' + unit.replace('/', '-')
+            command(temppath, filename, 'juju show-status-log -n 10000 ' + unit)
 
     store_results(temppath)
 
