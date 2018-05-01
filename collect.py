@@ -91,6 +91,8 @@ def main():
 
     command(temppath, 'status', 'juju status --format yaml')
     command(temppath, 'debug-log', 'juju debug-log --replay')
+    command(temppath, 'model-config', 'juju model-config')
+    command(temppath, 'controller-debug-log', 'juju debug-log -m controller --replay')
     command(temppath, 'storage', 'juju storage --format yaml')
     command(temppath, 'storage-pools', 'juju storage-pools --format yaml')
     command(temppath, 'kubernetes-master-config', 'juju config kubernetes-master --format yaml')
