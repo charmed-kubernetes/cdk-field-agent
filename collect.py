@@ -105,9 +105,9 @@ def main():
         print('Error getting juju status. Aborting.')
         return
 
-    debug_action(temppath, model, status, 'kubernetes-master')
-    debug_action(temppath, model, status, 'kubernetes-worker')
-    debug_action(temppath, model, status, 'etcd')
+    debug_action(temppath, status, model, 'kubernetes-master')
+    debug_action(temppath, status, model, 'kubernetes-worker')
+    debug_action(temppath, status, model, 'etcd')
     # FIXME: no debug action on kubeapi-load-balancer, easyrsa, flannel
 
     command(temppath, 'status', 'juju status {} --format yaml'.format(model))
