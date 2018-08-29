@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import os
 import tempfile
@@ -42,13 +43,15 @@ def debug_action(temppath, status, application):
                 unit_id = unit.split('/')[1]
                 outpath = os.path.join(temppath, 'debug', unit_name, unit_id)
                 os.makedirs(outpath)
-                cmd = 'juju scp %s:%s %s' % (unit, action_output['results']['path'], outpath)
+                cmd = 'juju scp %s:%s %s' % (
+                    unit, action_output['results']['path'], outpath)
                 try:
                     check_call(cmd.split())
                 except:
                     print('Error copying debug action output. Skipping.')
                 break
-            print('Failed debug action on unit %s, status %s' % (unit, action_output['status']))
+            print('Failed debug action on unit %s, status %s' %
+                  (unit, action_output['status']))
             break
 
 
@@ -71,14 +74,28 @@ def store_results(temppath):
     print('Results stored in %s.' % fname)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-m', '--model',
+        help='Model to operate in. Accepts [<controller name>:]<model name>')
+    return parser.parse_args()
+
+
 def main():
+    options = parse_args()
+    model = ""
+    if options.model:
+        model = "-m {}".format(options.model)
+
     tempdir = tempfile.TemporaryDirectory()
     temppath = os.path.join(tempdir.name, 'results')
     os.makedirs(temppath)
 
     print('Getting juju status...')
     try:
-        raw_status = check_output('juju status --format json'.split())
+        raw_status = check_output(
+            'juju status {} --format json'.format(model).split())
         status = json.loads(raw_status.decode())
     except:
         print('Error getting juju status. Aborting.')
@@ -89,25 +106,34 @@ def main():
     debug_action(temppath, status, 'etcd')
     # FIXME: no debug action on kubeapi-load-balancer, easyrsa, flannel
 
-    command(temppath, 'status', 'juju status --format yaml')
-    command(temppath, 'debug-log', 'juju debug-log --replay')
-    command(temppath, 'model-config', 'juju model-config')
-    command(temppath, 'controller-debug-log', 'juju debug-log -m controller --replay')
-    command(temppath, 'storage', 'juju storage --format yaml')
-    command(temppath, 'storage-pools', 'juju storage-pools --format yaml')
-    command(temppath, 'kubernetes-master-config', 'juju config kubernetes-master --format yaml')
-    command(temppath, 'kubernetes-worker-config', 'juju config kubernetes-worker --format yaml')
-    command(temppath, 'kubeapi-load-balancer-config', 'juju config kubeapi-load-balancer --format yaml')
-    command(temppath, 'etcd-config', 'juju config etcd --format yaml')
-    command(temppath, 'easyrsa-config', 'juju config easyrsa --format yaml')
-    command(temppath, 'flannel-config', 'juju config flannel --format yaml')
+    command(temppath, 'status', 'juju status {} --format yaml'.format(model))
+    command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
+    command(temppath, 'model-config', 'juju model-config {}'.format(model))
+    command(temppath, 'controller-debug-log',
+            'juju debug-log {} --replay'.format(model))
+    command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
+    command(temppath, 'storage-pools',
+            'juju storage-pools {} --format yaml'.format(model))
+    command(temppath, 'kubernetes-master-config',
+            'juju config {} kubernetes-master --format yaml'.format(model))
+    command(temppath, 'kubernetes-worker-config',
+            'juju config {} kubernetes-worker --format yaml'.format(model))
+    command(temppath, 'kubeapi-load-balancer-config',
+            'juju config {} kubeapi-load-balancer --format yaml'.format(model))
+    command(temppath, 'etcd-config',
+            'juju config {} etcd --format yaml'.format(model))
+    command(temppath, 'easyrsa-config',
+            'juju config {} easyrsa --format yaml'.format(model))
+    command(temppath, 'flannel-config',
+            'juju config {} flannel --format yaml'.format(model))
 
     apps = status.get('applications', {})
     for app, app_status in apps.items():
         units = app_status.get('units', {})
         for unit in units.keys():
             filename = 'status-log-' + unit.replace('/', '-')
-            command(temppath, filename, 'juju show-status-log -n 10000 ' + unit)
+            command(temppath, filename,
+                    'juju show-status-log {} -n 10000 {}'.format(model, unit))
 
     store_results(temppath)
 
