@@ -10,7 +10,7 @@ from datetime import datetime
 from subprocess import check_output, check_call, Popen
 
 
-def debug_action(temppath, status, application):
+def debug_action(temppath, status, model, application):
     # FIXME: doesn't handle subordinate apps properly yet
     # FIXME: these could be done in parallel
     apps = status.get('applications', {})
@@ -18,7 +18,7 @@ def debug_action(temppath, status, application):
     units = app.get('units', {})
     for unit in list(units.keys()):
         print('Executing debug action on %s...' % unit)
-        cmd = 'juju run-action %s debug --format json' % unit
+        cmd = 'juju run-action %s %s debug --format json' % (model, unit)
         try:
             raw_action = check_output(cmd.split())
             action = json.loads(raw_action.decode())
@@ -28,7 +28,8 @@ def debug_action(temppath, status, application):
         action_id = action['Action queued with id']
         while True:
             # FIXME: blocks forever in a couple cases
-            cmd = 'juju show-action-output %s --format json' % action_id
+            cmd = 'juju show-action-output %s %s --format json' % (model,
+                                                                   action_id)
             try:
                 raw_action_output = check_output(cmd.split())
                 action_output = json.loads(raw_action_output.decode())
@@ -43,8 +44,8 @@ def debug_action(temppath, status, application):
                 unit_id = unit.split('/')[1]
                 outpath = os.path.join(temppath, 'debug', unit_name, unit_id)
                 os.makedirs(outpath)
-                cmd = 'juju scp %s:%s %s' % (
-                    unit, action_output['results']['path'], outpath)
+                cmd = 'juju scp %s %s:%s %s' % (
+                    model, unit, action_output['results']['path'], outpath)
                 try:
                     check_call(cmd.split())
                 except:
@@ -101,9 +102,9 @@ def main():
         print('Error getting juju status. Aborting.')
         return
 
-    debug_action(temppath, status, 'kubernetes-master')
-    debug_action(temppath, status, 'kubernetes-worker')
-    debug_action(temppath, status, 'etcd')
+    debug_action(temppath, model, status, 'kubernetes-master')
+    debug_action(temppath, model, status, 'kubernetes-worker')
+    debug_action(temppath, model, status, 'etcd')
     # FIXME: no debug action on kubeapi-load-balancer, easyrsa, flannel
 
     command(temppath, 'status', 'juju status {} --format yaml'.format(model))
