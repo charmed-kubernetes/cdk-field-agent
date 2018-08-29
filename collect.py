@@ -87,6 +87,9 @@ def main():
     options = parse_args()
     model = ""
     if options.model:
+        if len(model.split(':')) != 2:
+            print("Error determining a controller and a model")
+            return
         model = "-m {}".format(options.model)
 
     tempdir = tempfile.TemporaryDirectory()
@@ -111,7 +114,7 @@ def main():
     command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
     command(temppath, 'model-config', 'juju model-config {}'.format(model))
     command(temppath, 'controller-debug-log',
-            'juju debug-log {} --replay'.format(model))
+            'juju debug-log {} --replay'.format(model.split(':')[0]))
     command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
     command(temppath, 'storage-pools',
             'juju storage-pools {} --format yaml'.format(model))
