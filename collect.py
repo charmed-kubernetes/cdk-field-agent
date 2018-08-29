@@ -79,7 +79,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-m', '--model',
-        help='Model to operate in. Accepts [<controller name>:]<model name>')
+        help='Model to operate in. Accepts <controller name>:<model name>')
     return parser.parse_args()
 
 
