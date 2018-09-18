@@ -89,7 +89,7 @@ def main():
     if not options.model:
         model = check_output(['juju', 'switch'])
         model = model.decode()
-        if len(options.model.split(':')) != 2:
+        if len(model.split(':')) != 2:
             print("juju controller:model unknown")
             sys.exit(1)
     else:
@@ -122,7 +122,8 @@ def main():
     command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
     command(temppath, 'model-config', 'juju model-config {}'.format(model))
     command(temppath, 'controller-debug-log',
-            'juju debug-log {} --replay'.format(model))
+            'juju debug-log -m {}:controller --replay'.format(
+                model.split(':')[0]))
     command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
     command(temppath, 'storage-pools',
             'juju storage-pools {} --format yaml'.format(model))
