@@ -18,7 +18,7 @@ def debug_action(temppath, status, model, application):
     units = app.get('units', {})
     for unit in list(units.keys()):
         print('Executing debug action on %s...' % unit)
-        cmd = 'juju run-action %s %s debug --format json' % (model, unit)
+        cmd = 'juju run-action -m %s %s debug --format json' % (model, unit)
         try:
             raw_action = check_output(cmd.split())
             action = json.loads(raw_action.decode())
@@ -28,7 +28,7 @@ def debug_action(temppath, status, model, application):
         action_id = action['Action queued with id']
         while True:
             # FIXME: blocks forever in a couple cases
-            cmd = 'juju show-action-output %s %s --format json' % (model,
+            cmd = 'juju show-action-output -m %s %s --format json' % (model,
                                                                    action_id)
             try:
                 raw_action_output = check_output(cmd.split())
@@ -135,7 +135,7 @@ def main():
         for unit in units.keys():
             filename = 'status-log-' + unit.replace('/', '-')
             command(temppath, filename,
-                    'juju show-status-log {} -n 10000 {}'.format(model, unit))
+                    'juju show-status-log -m {} -n 10000 {}'.format(model, unit))
 
     store_results(temppath)
 
