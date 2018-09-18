@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import time
+import sys
 
 from datetime import datetime
 from subprocess import check_output, check_call, Popen
@@ -85,10 +86,19 @@ def parse_args():
 
 def main():
     options = parse_args()
-    model = options.model
-    if model:
-        if ':' in options.model and len(options.model.split(':')) == 2:
-            model = "-m {}".format(options.model)
+    if not options.model:
+        model = check_output(['juju', 'switch'])
+        model = model.decode()
+        if len(options.model.split(':')) != 2:
+            print("juju controller:model unknown")
+            sys.exit(1)
+    else:
+        model = options.model
+        if len(model.split(':')) != 2:
+            print("juju controller:model unknown")
+            sys.exit(1)
+
+    model = "-m {}".format(model)
 
     tempdir = tempfile.TemporaryDirectory()
     temppath = os.path.join(tempdir.name, 'results')
@@ -112,7 +122,7 @@ def main():
     command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
     command(temppath, 'model-config', 'juju model-config {}'.format(model))
     command(temppath, 'controller-debug-log',
-            'juju debug-log -m controller --replay')
+            'juju debug-log {} --replay'.format(model))
     command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
     command(temppath, 'storage-pools',
             'juju storage-pools {} --format yaml'.format(model))
