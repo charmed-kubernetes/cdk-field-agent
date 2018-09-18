@@ -122,7 +122,7 @@ def main():
     command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
     command(temppath, 'model-config', 'juju model-config {}'.format(model))
     command(temppath, 'controller-debug-log',
-            'juju debug-log -m {}:controller --replay'.format(
+            'juju debug-log {}:controller --replay'.format(
                 model.split(':')[0]))
     command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
     command(temppath, 'storage-pools',
