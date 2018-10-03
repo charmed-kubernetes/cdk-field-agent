@@ -116,7 +116,8 @@ def main():
     debug_action(temppath, status, model, 'kubernetes-master')
     debug_action(temppath, status, model, 'kubernetes-worker')
     debug_action(temppath, status, model, 'etcd')
-    # FIXME: no debug action on kubeapi-load-balancer, easyrsa, flannel
+    debug_action(temppath, status, model, 'kubeapi-load-balancer')
+    # FIXME: no debug action on easyrsa, flannel
 
     command(temppath, 'status', 'juju status {} --format yaml'.format(model))
     command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
