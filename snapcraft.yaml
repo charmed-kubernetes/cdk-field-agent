@@ -1,0 +1,18 @@
+name: cdk-field-agent
+version: git
+summary: CDK Field Agent
+description: Collects data from a CDK deployment for analysis.
+
+confinement: classic
+
+parts:
+  cdk-field-agent:
+    plugin: python
+    source: .
+    override-build: |
+      snapcraftctl build
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp collect.py $SNAPCRAFT_PART_INSTALL/bin/
+apps:
+  cdk-field-agent:
+    command: bin/collect.py
