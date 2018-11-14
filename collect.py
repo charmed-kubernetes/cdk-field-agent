@@ -11,6 +11,10 @@ from datetime import datetime
 from subprocess import check_output, check_call, Popen
 
 
+def log(msg):
+    print(msg, flush=True)
+
+
 def debug_action(temppath, status, model, application):
     # FIXME: doesn't handle subordinate apps properly yet
     # FIXME: these could be done in parallel
@@ -18,13 +22,13 @@ def debug_action(temppath, status, model, application):
     app = apps.get(application, {})
     units = app.get('units', {})
     for unit in list(units.keys()):
-        print('Executing debug action on %s...' % unit)
+        log('Executing debug action on %s...' % unit)
         cmd = 'juju run-action %s %s debug --format json' % (model, unit)
         try:
             raw_action = check_output(cmd.split())
             action = json.loads(raw_action.decode())
         except:
-            print('Error running the debug action. Skipping.')
+            log('Error running the debug action. Skipping.')
             continue
         action_id = action['Action queued with id']
         while True:
@@ -35,7 +39,7 @@ def debug_action(temppath, status, model, application):
                 raw_action_output = check_output(cmd.split())
                 action_output = json.loads(raw_action_output.decode())
             except:
-                print('Error checking action output. Ignoring.')
+                log('Error checking action output. Ignoring.')
                 continue
             if action_output['status'] in ['running', 'pending']:
                 time.sleep(1)
@@ -50,15 +54,15 @@ def debug_action(temppath, status, model, application):
                 try:
                     check_call(cmd.split())
                 except:
-                    print('Error copying debug action output. Skipping.')
+                    log('Error copying debug action output. Skipping.')
                 break
-            print('Failed debug action on unit %s, status %s' %
-                  (unit, action_output['status']))
+            log('Failed debug action on unit %s, status %s' %
+                (unit, action_output['status']))
             break
 
 
 def command(temppath, filename, cmd):
-    print('Running %s...' % cmd)
+    log('Running %s...' % cmd)
     path = os.path.join(temppath, filename)
     stdout = open(path+'.out', 'w')
     stderr = open(path+'.err', 'w')
@@ -73,7 +77,7 @@ def store_results(temppath):
     fname = 'results-%s.tar.gz' % ts
     cmd = 'tar -C %s -czf %s results' % (os.path.dirname(temppath), fname)
     check_call(cmd.split())
-    print('Results stored in %s.' % fname)
+    log('Results stored in %s.' % fname)
 
 
 def parse_args():
@@ -90,12 +94,12 @@ def main():
         model = check_output(['juju', 'switch'])
         model = model.decode()
         if len(model.split(':')) != 2:
-            print("juju controller:model unknown")
+            log("juju controller:model unknown")
             sys.exit(1)
     else:
         model = options.model
         if len(model.split(':')) != 2:
-            print("juju controller:model unknown")
+            log("juju controller:model unknown")
             sys.exit(1)
 
     model = "-m {}".format(model)
@@ -104,13 +108,13 @@ def main():
     temppath = os.path.join(tempdir.name, 'results')
     os.makedirs(temppath)
 
-    print('Getting juju status...')
+    log('Getting juju status...')
     try:
         raw_status = check_output(
             'juju status {} --format json'.format(model).split())
         status = json.loads(raw_status.decode())
     except:
-        print('Error getting juju status. Aborting.')
+        log('Error getting juju status. Aborting.')
         return
 
     debug_action(temppath, status, model, 'kubernetes-master')
