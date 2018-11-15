@@ -15,22 +15,29 @@ def log(msg):
     print(msg, flush=True)
 
 
-def debug_action(temppath, status, model, application):
+def debug_action(temppath, status, model, applications):
     # FIXME: doesn't handle subordinate apps properly yet
     # FIXME: these could be done in parallel
+    actions = []
     apps = status.get('applications', {})
-    app = apps.get(application, {})
-    units = app.get('units', {})
-    for unit in list(units.keys()):
-        log('Executing debug action on %s...' % unit)
-        cmd = 'juju run-action %s %s debug --format json' % (model, unit)
-        try:
-            raw_action = check_output(cmd.split())
-            action = json.loads(raw_action.decode())
-        except:
-            log('Error running the debug action. Skipping.')
-            continue
-        action_id = action['Action queued with id']
+    for application in applications:
+        app = apps.get(application, {})
+        units = list(app.get('units', {}).keys())
+
+        for unit in units:
+            log('Starting debug action on %s' % unit)
+            cmd = 'juju run-action %s %s debug --format json' % (model, unit)
+            try:
+                raw_action = check_output(cmd.split())
+                action = json.loads(raw_action.decode())
+            except:
+                log('Error running the debug action. Skipping.')
+                continue
+            action_id = action['Action queued with id']
+            actions.append((unit, action_id))
+
+    for unit, action_id in actions:
+        log('Waiting for debug action on %s' % unit)
         while True:
             # FIXME: blocks forever in a couple cases
             cmd = 'juju show-action-output %s %s --format json' % (model,
@@ -52,6 +59,7 @@ def debug_action(temppath, status, model, application):
                 cmd = 'juju scp %s %s:%s %s' % (
                     model, unit, action_output['results']['path'], outpath)
                 try:
+                    log(cmd)
                     check_call(cmd.split())
                 except:
                     log('Error copying debug action output. Skipping.')
@@ -117,10 +125,13 @@ def main():
         log('Error getting juju status. Aborting.')
         return
 
-    debug_action(temppath, status, model, 'kubernetes-master')
-    debug_action(temppath, status, model, 'kubernetes-worker')
-    debug_action(temppath, status, model, 'etcd')
-    debug_action(temppath, status, model, 'kubeapi-load-balancer')
+    debug_apps = [
+        'kubernetes-master',
+        'kubernetes-worker',
+        'etcd',
+        'kubeapi-load-balancer'
+    ]
+    debug_action(temppath, status, model, debug_apps)
     # FIXME: no debug action on easyrsa, flannel
 
     command(temppath, 'status', 'juju status {} --format yaml'.format(model))
