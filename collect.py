@@ -15,13 +15,12 @@ def log(msg):
     print(msg, flush=True)
 
 
-def debug_action(temppath, status, model, applications):
+def start_debug_actions(status, model, app_names):
     # FIXME: doesn't handle subordinate apps properly yet
-    # FIXME: these could be done in parallel
     actions = []
     apps = status.get('applications', {})
-    for application in applications:
-        app = apps.get(application, {})
+    for app_name in app_names:
+        app = apps.get(app_name, {})
         units = list(app.get('units', {}).keys())
 
         for unit in units:
@@ -36,6 +35,10 @@ def debug_action(temppath, status, model, applications):
             action_id = action['Action queued with id']
             actions.append((unit, action_id))
 
+    return actions
+
+
+def collect_debug_actions(temppath, model, actions):
     for unit, action_id in actions:
         log('Waiting for debug action on %s' % unit)
         while True:
@@ -59,7 +62,6 @@ def debug_action(temppath, status, model, applications):
                 cmd = 'juju scp %s %s:%s %s' % (
                     model, unit, action_output['results']['path'], outpath)
                 try:
-                    log(cmd)
                     check_call(cmd.split())
                 except:
                     log('Error copying debug action output. Skipping.')
@@ -131,7 +133,7 @@ def main():
         'etcd',
         'kubeapi-load-balancer'
     ]
-    debug_action(temppath, status, model, debug_apps)
+    debug_actions = start_debug_actions(status, model, debug_apps)
     # FIXME: no debug action on easyrsa, flannel
 
     command(temppath, 'status', 'juju status {} --format yaml'.format(model))
@@ -164,6 +166,7 @@ def main():
             command(temppath, filename,
                     'juju show-status-log {} -n 10000 {}'.format(model, unit))
 
+    collect_debug_actions(temppath, model, debug_actions)
     store_results(temppath)
 
 
