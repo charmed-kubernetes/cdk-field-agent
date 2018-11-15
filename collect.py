@@ -8,7 +8,7 @@ import time
 import sys
 
 from datetime import datetime
-from subprocess import check_output, check_call, Popen
+from subprocess import check_output, check_call, Popen, CalledProcessError
 
 
 def log(msg):
@@ -28,10 +28,10 @@ def start_debug_actions(status, model, app_names):
             cmd = 'juju run-action %s %s debug --format json' % (model, unit)
             try:
                 raw_action = check_output(cmd.split())
-                action = json.loads(raw_action.decode())
-            except:
+            except CalledProcessError:
                 log('Error running the debug action. Skipping.')
                 continue
+            action = json.loads(raw_action.decode())
             action_id = action['Action queued with id']
             actions.append((unit, action_id))
 
@@ -47,10 +47,10 @@ def collect_debug_actions(temppath, model, actions):
                                                                    action_id)
             try:
                 raw_action_output = check_output(cmd.split())
-                action_output = json.loads(raw_action_output.decode())
-            except:
+            except CalledProcessError:
                 log('Error checking action output. Ignoring.')
                 continue
+            action_output = json.loads(raw_action_output.decode())
             if action_output['status'] in ['running', 'pending']:
                 time.sleep(1)
                 continue
@@ -63,7 +63,7 @@ def collect_debug_actions(temppath, model, actions):
                     model, unit, action_output['results']['path'], outpath)
                 try:
                     check_call(cmd.split())
-                except:
+                except CalledProcessError:
                     log('Error copying debug action output. Skipping.')
                 break
             log('Failed debug action on unit %s, status %s' %
@@ -118,56 +118,58 @@ def main():
     temppath = os.path.join(tempdir.name, 'results')
     os.makedirs(temppath)
 
-    log('Getting juju status...')
     try:
-        raw_status = check_output(
-            'juju status {} --format json'.format(model).split())
+        log('Getting juju status...')
+        try:
+            raw_status = check_output(
+                'juju status {} --format json'.format(model).split())
+        except CalledProcessError:
+            log('Error getting juju status. Aborting.')
+            return
         status = json.loads(raw_status.decode())
-    except:
-        log('Error getting juju status. Aborting.')
-        return
 
-    debug_apps = [
-        'kubernetes-master',
-        'kubernetes-worker',
-        'etcd',
-        'kubeapi-load-balancer'
-    ]
-    debug_actions = start_debug_actions(status, model, debug_apps)
-    # FIXME: no debug action on easyrsa, flannel
+        debug_apps = [
+            'kubernetes-master',
+            'kubernetes-worker',
+            'etcd',
+            'kubeapi-load-balancer'
+        ]
+        debug_actions = start_debug_actions(status, model, debug_apps)
+        # FIXME: no debug action on easyrsa, flannel
 
-    command(temppath, 'status', 'juju status {} --format yaml'.format(model))
-    command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
-    command(temppath, 'model-config', 'juju model-config {}'.format(model))
-    command(temppath, 'controller-debug-log',
-            'juju debug-log {}:controller --replay'.format(
-                model.split(':')[0]))
-    command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
-    command(temppath, 'storage-pools',
-            'juju storage-pools {} --format yaml'.format(model))
-    command(temppath, 'kubernetes-master-config',
-            'juju config {} kubernetes-master --format yaml'.format(model))
-    command(temppath, 'kubernetes-worker-config',
-            'juju config {} kubernetes-worker --format yaml'.format(model))
-    command(temppath, 'kubeapi-load-balancer-config',
-            'juju config {} kubeapi-load-balancer --format yaml'.format(model))
-    command(temppath, 'etcd-config',
-            'juju config {} etcd --format yaml'.format(model))
-    command(temppath, 'easyrsa-config',
-            'juju config {} easyrsa --format yaml'.format(model))
-    command(temppath, 'flannel-config',
-            'juju config {} flannel --format yaml'.format(model))
+        command(temppath, 'status', 'juju status {} --format yaml'.format(model))
+        command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
+        command(temppath, 'model-config', 'juju model-config {}'.format(model))
+        command(temppath, 'controller-debug-log',
+                'juju debug-log {}:controller --replay'.format(
+                    model.split(':')[0]))
+        command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
+        command(temppath, 'storage-pools',
+                'juju storage-pools {} --format yaml'.format(model))
+        command(temppath, 'kubernetes-master-config',
+                'juju config {} kubernetes-master --format yaml'.format(model))
+        command(temppath, 'kubernetes-worker-config',
+                'juju config {} kubernetes-worker --format yaml'.format(model))
+        command(temppath, 'kubeapi-load-balancer-config',
+                'juju config {} kubeapi-load-balancer --format yaml'.format(model))
+        command(temppath, 'etcd-config',
+                'juju config {} etcd --format yaml'.format(model))
+        command(temppath, 'easyrsa-config',
+                'juju config {} easyrsa --format yaml'.format(model))
+        command(temppath, 'flannel-config',
+                'juju config {} flannel --format yaml'.format(model))
 
-    apps = status.get('applications', {})
-    for app, app_status in apps.items():
-        units = app_status.get('units', {})
-        for unit in units.keys():
-            filename = 'status-log-' + unit.replace('/', '-')
-            command(temppath, filename,
-                    'juju show-status-log {} -n 10000 {}'.format(model, unit))
+        apps = status.get('applications', {})
+        for app, app_status in apps.items():
+            units = app_status.get('units', {})
+            for unit in units.keys():
+                filename = 'status-log-' + unit.replace('/', '-')
+                command(temppath, filename,
+                        'juju show-status-log {} -n 10000 {}'.format(model, unit))
 
-    collect_debug_actions(temppath, model, debug_actions)
-    store_results(temppath)
+        collect_debug_actions(temppath, model, debug_actions)
+    finally:
+        store_results(temppath)
 
 
 if __name__ == '__main__':
