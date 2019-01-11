@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import time
+import signal
 import sys
 
 from datetime import datetime
@@ -90,16 +91,27 @@ def store_results(temppath):
     log('Results stored in %s.' % fname)
 
 
+def timeout_alarm_handler(signum, frame):
+    raise TimeoutError('global timeout occurred')
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-m', '--model',
         help='Model to operate in. Accepts <controller name>:<model name>')
+    parser.add_argument(
+        '--timeout', type=int, default=1800,
+        help='Global timeout in seconds')
     return parser.parse_args()
 
 
 def main():
     options = parse_args()
+
+    signal.signal(signal.SIGALRM, timeout_alarm_handler)
+    signal.alarm(options.timeout)
+
     if not options.model:
         model = check_output(['juju', 'switch'])
         model = model.decode()
