@@ -16,25 +16,36 @@ def log(msg):
     print(msg, flush=True)
 
 
+def start_debug_action(model, unit):
+    log('Starting debug action on {}'.format(unit))
+    cmd = 'juju run-action {} {} debug --format json'.format(model, unit)
+    try:
+        raw_action = check_output(cmd.split())
+    except CalledProcessError:
+        log('Error running the debug action. Skipping.')
+        return
+    action = json.loads(raw_action.decode())
+    action_id = action['Action queued with id']
+    return (unit, action_id)
+
+
 def start_debug_actions(status, model, app_names):
-    # FIXME: doesn't handle subordinate apps properly yet
     actions = []
     apps = status.get('applications', {})
     for app_name in app_names:
         app = apps.get(app_name, {})
-        units = list(app.get('units', {}).keys())
+        units = list(app.get('units', {}).items())
 
-        for unit in units:
-            log('Starting debug action on %s' % unit)
-            cmd = 'juju run-action %s %s debug --format json' % (model, unit)
-            try:
-                raw_action = check_output(cmd.split())
-            except CalledProcessError:
-                log('Error running the debug action. Skipping.')
-                continue
-            action = json.loads(raw_action.decode())
-            action_id = action['Action queued with id']
-            actions.append((unit, action_id))
+        for unit, state in units:
+            result = start_debug_action(model, unit)
+            if result:
+                actions.append(result)
+            subordinates = state.get('subordinates', {})
+            if subordinates:
+                for unit, state in subordinates.items():
+                    result = start_debug_action(model, unit)
+                    if result:
+                        actions.append(result)
 
     return actions
 
@@ -70,6 +81,12 @@ def collect_debug_actions(temppath, model, actions):
             log('Failed debug action on unit %s, status %s' %
                 (unit, action_output['status']))
             break
+
+
+def collect_status_log(temppath, model, unit):
+    filename = 'status-log-' + unit.replace('/', '-')
+    command(temppath, filename,
+            'juju show-status-log {} -n 10000 {}'.format(model, unit))
 
 
 def command(temppath, filename, cmd):
@@ -121,10 +138,10 @@ def main():
     else:
         model = options.model
         if len(model.split(':')) != 2:
-            log("juju controller:model unknown")
+            log('juju controller:model unknown')
             sys.exit(1)
 
-    model = "-m {}".format(model)
+    model = '-m {}'.format(model)
 
     tempdir = tempfile.TemporaryDirectory()
     temppath = os.path.join(tempdir.name, 'results')
@@ -140,44 +157,48 @@ def main():
             return
         status = json.loads(raw_status.decode())
 
-        debug_apps = [
+        apps = [
             'kubernetes-master',
             'kubernetes-worker',
             'etcd',
-            'kubeapi-load-balancer'
+            'kubeapi-load-balancer',
+            'easyrsa',
+            'flannel',
+            'docker',
+            'containerd'
         ]
-        debug_actions = start_debug_actions(status, model, debug_apps)
+        debug_actions = start_debug_actions(status, model, apps)
         # FIXME: no debug action on easyrsa, flannel
 
-        command(temppath, 'status', 'juju status {} --format yaml'.format(model))
-        command(temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
-        command(temppath, 'model-config', 'juju model-config {}'.format(model))
-        command(temppath, 'controller-debug-log',
-                'juju debug-log {}:controller --replay'.format(
-                    model.split(':')[0]))
-        command(temppath, 'storage', 'juju storage {} --format yaml'.format(model))
-        command(temppath, 'storage-pools',
-                'juju storage-pools {} --format yaml'.format(model))
-        command(temppath, 'kubernetes-master-config',
-                'juju config {} kubernetes-master --format yaml'.format(model))
-        command(temppath, 'kubernetes-worker-config',
-                'juju config {} kubernetes-worker --format yaml'.format(model))
-        command(temppath, 'kubeapi-load-balancer-config',
-                'juju config {} kubeapi-load-balancer --format yaml'.format(model))
-        command(temppath, 'etcd-config',
-                'juju config {} etcd --format yaml'.format(model))
-        command(temppath, 'easyrsa-config',
-                'juju config {} easyrsa --format yaml'.format(model))
-        command(temppath, 'flannel-config',
-                'juju config {} flannel --format yaml'.format(model))
+        command(
+            temppath, 'status', 'juju status {} --format yaml'.format(model))
+        command(
+            temppath, 'debug-log', 'juju debug-log {} --replay'.format(model))
+        command(
+            temppath, 'model-config', 'juju model-config {}'.format(model))
+        command(
+            temppath, 'controller-debug-log',
+            'juju debug-log {}:controller --replay'.format(
+                model.split(':')[0]))
+        command(
+            temppath, 'storage', 'juju storage {} --format yaml'.format(model))
+        command(
+            temppath, 'storage-pools',
+            'juju storage-pools {} --format yaml'.format(model))
+
+        for app in apps:
+            command(temppath, '{}-config'.format(app),
+                    'juju config {} {} --format yaml'.format(model, app))
 
         apps = status.get('applications', {})
-        for app, app_status in apps.items():
+        for app_status in apps.values():
             units = app_status.get('units', {})
-            for unit in units.keys():
-                filename = 'status-log-' + unit.replace('/', '-')
-                command(temppath, filename,
-                        'juju show-status-log {} -n 10000 {}'.format(model, unit))
+            for unit, state in units.items():
+                collect_status_log(temppath, model, unit)
+                subordinates = state.get('subordinates', {})
+                if subordinates:
+                    for unit, state in subordinates.items():
+                        collect_status_log(temppath, model, unit)
 
         collect_debug_actions(temppath, model, debug_actions)
     finally:
